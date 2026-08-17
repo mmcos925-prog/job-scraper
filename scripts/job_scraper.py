@@ -121,7 +121,8 @@ def send_email(html_body, job_count):
     msg["Subject"] = f"Job Digest {today} - {job_count} posting(s)"
     msg["From"]    = GMAIL_USER
     msg["To"]      = NOTIFY_EMAIL
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    safe_html = html_body.encode("ascii", errors="replace").decode("ascii")
+    msg.attach(MIMEText(safe_html, "html"))
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
