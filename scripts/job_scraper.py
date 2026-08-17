@@ -236,7 +236,7 @@ def send_email(html_body, job_count):
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
-            server.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_string())
+            server.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_bytes())
         print(f"✅ Email sent to {NOTIFY_EMAIL} with {job_count} jobs")
     except Exception as e:
         print(f"❌ Email failed: {e}")
