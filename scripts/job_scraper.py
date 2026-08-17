@@ -117,16 +117,21 @@ def send_email(html_body, job_count):
         print("Email credentials not configured")
         return
     today = datetime.now().strftime("%B %d, %Y")
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Job Digest {today} - {job_count} posting(s)"
-    msg["From"]    = GMAIL_USER
-    msg["To"]      = NOTIFY_EMAIL
+    subject = f"Job Digest {today} - {job_count} posting(s)"
     safe_html = html_body.encode("ascii", errors="replace").decode("ascii")
-    msg.attach(MIMEText(safe_html, "html"))
+    raw = (
+        f"From: {GMAIL_USER}\r\n"
+        f"To: {NOTIFY_EMAIL}\r\n"
+        f"Subject: {subject}\r\n"
+        f"MIME-Version: 1.0\r\n"
+        f"Content-Type: text/html; charset=us-ascii\r\n"
+        f"\r\n"
+        f"{safe_html}"
+    )
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
-            server.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_bytes())
+            server.sendmail(GMAIL_USER, NOTIFY_EMAIL, raw.encode("ascii", errors="replace"))
         print(f"Email sent to {NOTIFY_EMAIL} with {job_count} jobs")
     except Exception as e:
         print(f"Email failed: {e}")
