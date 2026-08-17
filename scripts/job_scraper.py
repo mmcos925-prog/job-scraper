@@ -26,7 +26,7 @@ JOB_KEYWORDS = [
     "junior systems administrator",
 ]
 
-LOCATIONS = ["california", "remote"]
+LOCATIONS = ["Brentwood CA", "Antioch CA", "Concord CA", "Walnut Creek CA", "Livermore CA", "Pittsburg CA", "remote"]
 MIN_SALARY = 40000
 
 BLOCKED_EXPERIENCE = [
