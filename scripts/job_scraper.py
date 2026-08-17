@@ -178,7 +178,7 @@ def fetch_usajobs(keyword):
         headers = {
             "Host": "data.usajobs.gov",
             "User-Agent": GMAIL_USER,
-            "Authorization-Key": "",
+            "Authorization-Key": os.environ.get("USAJOBS_API_KEY", ""),
         }
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as r:
