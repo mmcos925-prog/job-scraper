@@ -24,6 +24,14 @@ NOTIFY_EMAIL   = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 
+def clean(text):
+    """Remove non-ASCII characters from job data"""
+    if not text:
+        return "N/A"
+    return text.replace("\xa0", " ").replace("\u00a0", " ").encode("ascii", errors="replace").decode("ascii").strip()
+
+
+
 
 def fetch_adzuna(keyword, location="california"):
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
@@ -41,9 +49,9 @@ def fetch_adzuna(keyword, location="california"):
             data = json.loads(r.read())
         jobs = []
         for j in data.get("results", []):
-            title    = j.get("title", "N/A").encode("ascii", errors="replace").decode("ascii")
-            company  = j.get("company", {}).get("display_name", "N/A").encode("ascii", errors="replace").decode("ascii")
-            loc_name = j.get("location", {}).get("display_name", "N/A").encode("ascii", errors="replace").decode("ascii")
+            title    = clean(j.get("title", "N/A"))
+            company  = clean(j.get("company", {}).get("display_name", "N/A"))
+            loc_name = clean(j.get("location", {}).get("display_name", "N/A"))
             salary   = (f"${j['salary_min']:,.0f} - ${j['salary_max']:,.0f}"
                        if j.get("salary_min") else "Not listed")
             jobs.append({
