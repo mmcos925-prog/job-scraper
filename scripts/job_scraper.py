@@ -129,10 +129,10 @@ def send_email(html_body, job_count):
         f"{safe_html}"
     )
     try:
-        print(f"DEBUG raw[0:100]: {repr(raw[0:100])}")
-        for i, c in enumerate(raw[:200]):
+        for i, c in enumerate(raw):
             if ord(c) > 127:
-                print(f"NON-ASCII at position {i}: {repr(c)}")
+                print(f"NON-ASCII at position {i}: {repr(c)} context: {repr(raw[max(0,i-20):i+20])}")
+                break
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
             server.sendmail(GMAIL_USER, NOTIFY_EMAIL, raw.encode("ascii", errors="replace"))
