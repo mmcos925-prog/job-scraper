@@ -129,6 +129,7 @@ def send_email(html_body, job_count):
         f"{safe_html}"
     )
     try:
+        print(f"DEBUG raw[25:45]: {repr(raw[25:45])}")
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
             server.sendmail(GMAIL_USER, NOTIFY_EMAIL, raw.encode("ascii", errors="replace"))
