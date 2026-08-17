@@ -18,9 +18,9 @@ JOB_KEYWORDS = [
     "technical support specialist",
 ]
 
-GMAIL_USER     = os.environ.get("GMAIL_USER")
+GMAIL_USER     = (os.environ.get("GMAIL_USER") or "").encode("ascii", errors="replace").decode("ascii").strip()
 GMAIL_PASS     = os.environ.get("GMAIL_APP_PASSWORD")
-NOTIFY_EMAIL   = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
+NOTIFY_EMAIL   = (os.environ.get("NOTIFY_EMAIL") or GMAIL_USER).encode("ascii", errors="replace").decode("ascii").strip()
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 
