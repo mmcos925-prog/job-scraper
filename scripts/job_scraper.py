@@ -168,6 +168,42 @@ def fetch_indeed(keyword, location):
         return []
 
 
+
+def fetch_dice(keyword):
+    try:
+        query   = urllib.parse.quote(keyword)
+        api_url = (
+            f"https://job-search-api.svc.dhigroupinc.com/v1/dice/jobs/search"
+            f"?q={query}&countryCode2=US&radius=30&radiusUnit=mi"
+            f"&page=1&pageSize=10&filters.postedDate=ONE&language=en"
+        )
+        req = urllib.request.Request(api_url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept":     "application/json",
+            "x-api-key":  "1YAt0R9wBg4WfsF9VB2778F5CHLAPMVW3WAZcKd8",
+        })
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        jobs = []
+        for j in data.get("data", [])[:10]:
+            company = j.get("company", "N/A")
+            if isinstance(company, dict):
+                company = company.get("name", "N/A")
+            jobs.append({
+                "title":       clean(j.get("title", "N/A")),
+                "company":     clean(str(company)),
+                "location":    clean(j.get("location", "N/A")),
+                "url":         f"https://www.dice.com/jobs/detail/{j.get('id', '')}",
+                "salary":      clean(j.get("salary", "") or "Not listed"),
+                "salary_min":  0,
+                "description": clean(j.get("title", "")).lower(),
+                "source":      "Dice",
+            })
+        return jobs
+    except Exception as e:
+        print(f"  Dice error ({keyword}): {e}")
+        return []
+
 def fetch_usajobs(keyword):
     try:
         query = urllib.parse.quote(keyword)
@@ -344,6 +380,7 @@ def main():
         for loc in LOCATIONS:
             all_jobs += fetch_adzuna(keyword, loc)
             all_jobs += fetch_indeed(keyword, loc)
+        all_jobs += fetch_dice(keyword)
         all_jobs += fetch_usajobs(keyword)
         all_jobs += fetch_remotive(keyword)
 
