@@ -210,20 +210,30 @@ def fetch_usajobs(keyword):
 
 def fetch_remotive(keyword):
     try:
+        import re as re_mod
         query = urllib.parse.quote(keyword)
-        url   = f"https://remotive.com/api/remote-jobs?search={query}&limit=5"
-        with urllib.request.urlopen(url, timeout=10) as r:
-            data = json.loads(r.read())
-        jobs = []
-        for j in data.get("jobs", [])[:5]:
+        url   = f"https://remotive.com/remote-jobs/feed?search={query}"
+        req   = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"
+        })
+        with urllib.request.urlopen(req, timeout=10) as r:
+            rss = r.read().decode("utf-8", errors="replace")
+        items = re_mod.findall(r"<item>(.*?)</item>", rss, re_mod.DOTALL)
+        jobs  = []
+        for item in items[:5]:
+            title   = re_mod.search(r"<title><!\[CDATA\[(.*?)\]\]></title>", item)
+            link    = re_mod.search(r"<link>(.*?)</link>", item)
+            company = re_mod.search(r"<dc:creator><!\[CDATA\[(.*?)\]\]></dc:creator>", item)
+            if not title:
+                continue
             jobs.append({
-                "title":       clean(j.get("title", "N/A")),
-                "company":     clean(j.get("company_name", "N/A")),
+                "title":       clean(title.group(1)),
+                "company":     clean(company.group(1)) if company else "N/A",
                 "location":    "Remote",
-                "url":         j.get("url", "#"),
-                "salary":      clean(j.get("salary", "Not listed") or "Not listed"),
+                "url":         link.group(1).strip() if link else "#",
+                "salary":      "Not listed",
                 "salary_min":  0,
-                "description": clean(j.get("title", "")).lower(),
+                "description": title.group(1).lower(),
                 "source":      "Remotive",
             })
         return jobs
