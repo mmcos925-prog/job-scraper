@@ -26,4 +26,5 @@ jobs:
           NOTIFY_EMAIL:      ${{ secrets.NOTIFY_EMAIL }}
           ADZUNA_APP_ID:     ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY:    ${{ secrets.ADZUNA_APP_KEY }}
+          USAJOBS_API_KEY:    ${{ secrets.USAJOBS_API_KEY }}
         run: python scripts/job_scraper.py
