@@ -138,8 +138,6 @@ def send_email(html_body, job_count):
             server.sendmail(GMAIL_USER, NOTIFY_EMAIL, raw.encode("ascii", errors="replace"))
         print(f"Email sent to {NOTIFY_EMAIL} with {job_count} jobs")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         print(f"Email failed: {e}")
 
 
