@@ -508,12 +508,15 @@ def main():
             continue
         if not is_entry_level(job):
             skipped += 1
+            print(f"  FILTERED (experience): {job.get('title')} | {job.get('company')}")
             continue
         if not meets_salary(job):
             skipped += 1
+            print(f"  FILTERED (salary): {job.get('title')} | {job.get('company')}")
             continue
         if not is_allowed_location(job):
             skipped += 1
+            print(f"  FILTERED (location): {job.get('title')} | {job.get('location')} | {job.get('source')}")
             continue
         filtered.append(job)
         new_seen.add(jid)
