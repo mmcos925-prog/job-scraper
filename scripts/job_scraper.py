@@ -218,11 +218,18 @@ def fetch_dice(keyword):
             wfh = str(j.get("workFromHomeAvailability", "") or "").lower()
             is_remote = "remote" in wfh or wfh in ["yes", "true", "1", "full"]
 
-            # If not remote, must be California
+            # If not remote, must be California or unknown location
             if not is_remote:
                 loc_lower = location.lower()
-                if "california" not in loc_lower and ", ca" not in loc_lower and location not in ["n/a", "", "remote"]:
-                    continue
+                # Only block if we have a clear non-California location
+                if location not in ["n/a", "", "remote", "n, a"] and "california" not in loc_lower and ", ca" not in loc_lower:
+                    # Check if it's clearly another state
+                    other_states = [", tx", ", fl", ", ny", ", wa", ", or", ", co", 
+                                   ", ga", ", il", ", nj", ", ma", ", nc", ", oh",
+                                   ", mi", ", pa", ", az", ", va", ", dc", ", md",
+                                   ", mn", ", mo", ", tn", ", nv", ", ut", ", id"]
+                    if any(state in loc_lower for state in other_states):
+                        continue
 
             if is_remote:
                 location = "Remote"
