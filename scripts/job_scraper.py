@@ -560,7 +560,6 @@ def main():
             all_jobs += fetch_adzuna(keyword, loc)
             all_jobs += fetch_indeed(keyword, loc)
         all_jobs += fetch_dice(keyword)
-        all_jobs += fetch_ziprecruiter(keyword)
         all_jobs += fetch_usajobs(keyword)
         all_jobs += fetch_remotive(keyword)
 
