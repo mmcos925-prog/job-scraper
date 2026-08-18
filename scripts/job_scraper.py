@@ -302,25 +302,64 @@ def deduplicate(jobs):
     return result
 
 
+# States and cities we never want
+BLOCKED_LOCATIONS = [
+    "new york", "seattle", "chicago", "boston", "austin",
+    "denver", "atlanta", "dallas", "houston", "phoenix",
+    "miami", "portland", "minneapolis", "detroit", "las vegas",
+    "nashville", "charlotte", "raleigh", "washington dc",
+    "washington, dc", "arlington", "virginia", "texas", "florida",
+    "georgia", "illinois", "new jersey", "massachusetts",
+    "north carolina", "ohio", "michigan", "pennsylvania",
+    "colorado", "arizona", "oregon", "washington state",
+    "new york, ny", "ny, ny", ", ny", ", tx", ", fl",
+    ", ga", ", il", ", nj", ", ma", ", nc", ", oh",
+    ", mi", ", pa", ", co", ", az", ", or", ", wa",
+    ", va", ", dc", ", md", ", mn", ", mo", ", tn",
+    "brooklyn", "manhattan", "bronx", "queens",
+]
+
 ALLOWED_LOCATIONS = [
     "remote", "brentwood", "antioch", "concord",
     "walnut creek", "livermore", "pittsburg", "clayton",
     "pleasant hill", "bay point", "oakley", "discovery bay",
-    "anywhere", "united states", "us", "usa", "nationwide"
+    "california", ", ca", "ca,", "bay area", "east bay",
+    "united states", "usa", "nationwide", "anywhere", "n/a"
 ]
 
 def is_allowed_location(job):
-    location = job.get("location", "").lower()
-    # Always allow remote
-    if "remote" in location:
+    location = job.get("location", "").lower().strip()
+
+    # Block specific out-of-state locations first
+    for blocked in BLOCKED_LOCATIONS:
+        if blocked in location:
+            return False
+
+    # Always allow remote with no state specified
+    if location in ["remote", "remote, remote", "anywhere", ""]:
         return True
+
+    # Allow remote if it also mentions California
+    if "remote" in location and ("ca" in location or "california" in location):
+        return True
+
+    # Allow pure remote with no location info
+    if "remote" in location and not any(c.isalpha() and c not in "remote" for c in location.replace("remote", "")):
+        return True
+
     # Allow if no location specified
     if not location or location == "n/a":
         return True
-    # Check against allowed cities
+
+    # Check against allowed locations
     for allowed in ALLOWED_LOCATIONS:
         if allowed in location:
             return True
+
+    # If location has "remote" anywhere and passes blocked check, allow it
+    if "remote" in location:
+        return True
+
     return False
 
 
