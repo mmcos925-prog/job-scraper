@@ -31,14 +31,11 @@ MIN_SALARY = 40000
 
 BLOCKED_EXPERIENCE = [
     "5+ years", "6+ years", "7+ years", "8+ years", "9+ years", "10+ years",
-    "5 years", "6 years", "7 years", "8 years", "9 years", "10 years",
     "5+ yrs", "6+ yrs", "7+ yrs", "8+ yrs",
-    "minimum 5", "minimum 6", "minimum 7", "minimum 8",
-    "at least 5", "at least 6", "at least 7", "at least 8",
-    "senior ", "staff ", "principal ", "director", "manager ",
-    "lead ", "architect ", "vp ", "vice president", "head of",
-    "4+ years", "4 years experience", "minimum 4 years",
-    "at least 4 years", "4+ yrs"
+    "minimum 5 years", "minimum 6 years", "minimum 7 years", "minimum 8 years",
+    "at least 5 years", "at least 6 years", "at least 7 years", "at least 8 years",
+    "senior ", "principal ", "director", "vp ", "vice president", "head of",
+    "architect ", "10+ years", "10 years experience"
 ]
 
 BLOCKED_COMPANIES = []
@@ -96,8 +93,21 @@ def clean(text):
             .encode("ascii", errors="replace").decode("ascii").strip())
 
 
+IT_KEYWORDS = [
+    "cloud", "security", "it ", "helpdesk", "help desk", "support",
+    "network", "cyber", "analyst", "engineer", "technician", "specialist",
+    "soc", "aws", "azure", "linux", "system", "information technology",
+    "devops", "infrastructure", "database", "software", "developer"
+]
+
 def is_entry_level(job):
-    combined = (job.get("title", "") + " " + job.get("description", "")).lower()
+    title    = job.get("title", "").lower()
+    combined = (title + " " + job.get("description", "")).lower()
+
+    # Must be IT-related
+    if not any(kw in combined for kw in IT_KEYWORDS):
+        return False
+
     for phrase in BLOCKED_EXPERIENCE:
         if phrase.lower() in combined:
             return False
@@ -255,6 +265,7 @@ def fetch_usajobs(keyword):
         url   = (
             f"https://data.usajobs.gov/api/search?Keyword={query}"
             f"&ResultsPerPage=5&SortField=OpenDate&SortDirection=Desc"
+            f"&JobCategoryCode=2210,2211,2212,2200"
         )
         headers = {
             "Host": "data.usajobs.gov",
