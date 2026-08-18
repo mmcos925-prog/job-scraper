@@ -302,6 +302,28 @@ def deduplicate(jobs):
     return result
 
 
+ALLOWED_LOCATIONS = [
+    "remote", "brentwood", "antioch", "concord",
+    "walnut creek", "livermore", "pittsburg", "clayton",
+    "pleasant hill", "bay point", "oakley", "discovery bay",
+    "anywhere", "united states", "us", "usa", "nationwide"
+]
+
+def is_allowed_location(job):
+    location = job.get("location", "").lower()
+    # Always allow remote
+    if "remote" in location:
+        return True
+    # Allow if no location specified
+    if not location or location == "n/a":
+        return True
+    # Check against allowed cities
+    for allowed in ALLOWED_LOCATIONS:
+        if allowed in location:
+            return True
+    return False
+
+
 def build_email(jobs, skipped):
     today = datetime.now().strftime("%B %d, %Y")
     if not jobs:
@@ -414,6 +436,9 @@ def main():
             skipped += 1
             continue
         if not meets_salary(job):
+            skipped += 1
+            continue
+        if not is_allowed_location(job):
             skipped += 1
             continue
         filtered.append(job)
