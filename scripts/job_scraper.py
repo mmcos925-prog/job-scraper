@@ -201,11 +201,17 @@ def fetch_indeed(keyword, location):
 def fetch_dice(keyword):
     try:
         query   = urllib.parse.quote(keyword)
-        # Search twice - once for remote, once for California
+        # Search three ways - Bay Area, California, and Remote
         api_url = (
             f"https://job-search-api.svc.dhigroupinc.com/v1/dice/jobs/search"
             f"?q={query}&countryCode2=US&radius=50&radiusUnit=mi"
-            f"&locationPrecision=City&location=Brentwood%2C+California%2C+United+States"
+            f"&locationPrecision=City&location=San+Francisco%2C+California%2C+United+States"
+            f"&page=1&pageSize=5&filters.postedDate=ONE&language=en"
+        )
+        api_url_ca = (
+            f"https://job-search-api.svc.dhigroupinc.com/v1/dice/jobs/search"
+            f"?q={query}&countryCode2=US&radius=50&radiusUnit=mi"
+            f"&locationPrecision=City&location=Sacramento%2C+California%2C+United+States"
             f"&page=1&pageSize=5&filters.postedDate=ONE&language=en"
         )
         api_url_remote = (
