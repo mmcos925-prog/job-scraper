@@ -200,29 +200,41 @@ def fetch_dice(keyword):
             data = json.loads(r.read())
         jobs = []
         for j in data.get("data", [])[:10]:
-            company = j.get("company", "N/A")
+            company = j.get("companyName", j.get("company", "N/A"))
             if isinstance(company, dict):
                 company = company.get("name", "N/A")
-            location = clean(j.get("location", "N/A"))
-            # Debug - print all keys for first job
-            if j == data.get("data", [])[0]:
-                print(f"  DICE JOB KEYS: {list(j.keys())}")
-                print(f"  DICE LOCATION: {j.get('location')}")
-                print(f"  DICE REMOTE: {j.get('remote')} | {j.get('isRemote')} | {j.get('workSetting')} | {j.get('workplaceTypes')}")
-            work_setting = j.get("workSetting", j.get("workplaceType", "")).lower()
-            # Skip on-site jobs not in California
-            if work_setting in ["on_site", "onsite", "on-site", "in_office"]:
+
+            # Get location from jobLocation field
+            job_location = j.get("jobLocation", {}) or {}
+            if isinstance(job_location, dict):
+                city    = job_location.get("city", "")
+                state   = job_location.get("state", "")
+                country = job_location.get("country", "")
+                location = clean(f"{city}, {state}".strip(", ")) or "N/A"
+            else:
+                location = clean(str(job_location)) or "N/A"
+
+            # Check remote availability
+            wfh = str(j.get("workFromHomeAvailability", "") or "").lower()
+            is_remote = "remote" in wfh or wfh in ["yes", "true", "1", "full"]
+
+            # If not remote, must be California
+            if not is_remote:
                 loc_lower = location.lower()
-                if "california" not in loc_lower and ", ca" not in loc_lower and "remote" not in loc_lower:
+                if "california" not in loc_lower and ", ca" not in loc_lower and location not in ["n/a", "", "remote"]:
                     continue
+
+            if is_remote:
+                location = "Remote"
+
             jobs.append({
                 "title":       clean(j.get("title", "N/A")),
                 "company":     clean(str(company)),
                 "location":    location,
-                "url":         f"https://www.dice.com/jobs/detail/{j.get('id', '')}",
+                "url":         j.get("detailsPageUrl", f"https://www.dice.com/jobs/detail/{j.get('id', '')}"),
                 "salary":      clean(j.get("salary", "") or "Not listed"),
                 "salary_min":  0,
-                "description": clean(j.get("title", "")).lower(),
+                "description": clean(j.get("title", "") + " " + j.get("summary", "")).lower(),
                 "source":      "Dice",
             })
         return jobs
