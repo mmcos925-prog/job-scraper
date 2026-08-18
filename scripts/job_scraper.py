@@ -203,10 +203,17 @@ def fetch_dice(keyword):
             company = j.get("company", "N/A")
             if isinstance(company, dict):
                 company = company.get("name", "N/A")
+            location = clean(j.get("location", "N/A"))
+            work_setting = j.get("workSetting", j.get("workplaceType", "")).lower()
+            # Skip on-site jobs not in California
+            if work_setting in ["on_site", "onsite", "on-site", "in_office"]:
+                loc_lower = location.lower()
+                if "california" not in loc_lower and ", ca" not in loc_lower and "remote" not in loc_lower:
+                    continue
             jobs.append({
                 "title":       clean(j.get("title", "N/A")),
                 "company":     clean(str(company)),
-                "location":    clean(j.get("location", "N/A")),
+                "location":    location,
                 "url":         f"https://www.dice.com/jobs/detail/{j.get('id', '')}",
                 "salary":      clean(j.get("salary", "") or "Not listed"),
                 "salary_min":  0,
@@ -350,6 +357,10 @@ def is_allowed_location(job):
     # Allow if no location specified
     if not location or location == "n/a":
         return True
+
+    # Block generic "United States" with no state — too broad
+    if location in ["united states", "usa", "us"]:
+        return False
 
     # Check against allowed locations
     for allowed in ALLOWED_LOCATIONS:
