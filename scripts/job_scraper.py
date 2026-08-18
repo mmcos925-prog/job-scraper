@@ -277,6 +277,46 @@ def fetch_dice(keyword):
         print(f"  Dice error ({keyword}): {e}")
         return []
 
+
+def fetch_ziprecruiter(keyword):
+    try:
+        import re as re_mod
+        query = urllib.parse.quote(keyword)
+        # Search Bay Area and Remote specifically
+        urls = [
+            f"https://api.ziprecruiter.com/jobs/v1?search={query}&location=San+Francisco+Bay+Area+CA&radius_miles=50&days_ago=1&jobs_per_page=10&page=1",
+            f"https://api.ziprecruiter.com/jobs/v1?search={query}&location=Remote&days_ago=1&jobs_per_page=5&page=1",
+        ]
+        jobs = []
+        for url in urls:
+            try:
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json",
+                })
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    data = json.loads(r.read())
+                for j in data.get("jobs", [])[:5]:
+                    city    = j.get("city", "")
+                    state   = j.get("state", "")
+                    location = clean(f"{city}, {state}".strip(", ")) if city else "Remote"
+                    jobs.append({
+                        "title":       clean(j.get("name", "N/A")),
+                        "company":     clean(j.get("hiring_company", {}).get("name", "N/A")),
+                        "location":    location,
+                        "url":         j.get("url", "#"),
+                        "salary":      clean(j.get("salary_interval", "") or "Not listed"),
+                        "salary_min":  j.get("salary_min", 0) or 0,
+                        "description": clean(j.get("snippet", "") + " " + j.get("name", "")).lower(),
+                        "source":      "ZipRecruiter",
+                    })
+            except Exception as e:
+                print(f"  ZipRecruiter error ({keyword}): {e}")
+        return jobs
+    except Exception as e:
+        print(f"  ZipRecruiter error ({keyword}): {e}")
+        return []
+
 def fetch_usajobs(keyword):
     try:
         query = urllib.parse.quote(keyword)
@@ -520,6 +560,7 @@ def main():
             all_jobs += fetch_adzuna(keyword, loc)
             all_jobs += fetch_indeed(keyword, loc)
         all_jobs += fetch_dice(keyword)
+        all_jobs += fetch_ziprecruiter(keyword)
         all_jobs += fetch_usajobs(keyword)
         all_jobs += fetch_remotive(keyword)
 
