@@ -108,16 +108,21 @@ def is_entry_level(job):
     if not any(kw in combined for kw in IT_KEYWORDS):
         return False
 
+    # Only check experience blockers against TITLE not full description
     for phrase in BLOCKED_EXPERIENCE:
-        if phrase.lower() in combined:
+        if phrase.lower() in title:
             return False
+
     company = job.get("company", "").lower()
     for blocked in BLOCKED_COMPANIES:
         if blocked.lower() in company:
             return False
+
+    # Only check blocked keywords against title
     for phrase in BLOCKED_KEYWORDS:
-        if phrase.lower() in combined:
+        if phrase.lower() in title:
             return False
+
     return True
 
 
