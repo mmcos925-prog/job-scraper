@@ -204,6 +204,11 @@ def fetch_dice(keyword):
             if isinstance(company, dict):
                 company = company.get("name", "N/A")
             location = clean(j.get("location", "N/A"))
+            # Debug - print all keys for first job
+            if j == data.get("data", [])[0]:
+                print(f"  DICE JOB KEYS: {list(j.keys())}")
+                print(f"  DICE LOCATION: {j.get('location')}")
+                print(f"  DICE REMOTE: {j.get('remote')} | {j.get('isRemote')} | {j.get('workSetting')} | {j.get('workplaceTypes')}")
             work_setting = j.get("workSetting", j.get("workplaceType", "")).lower()
             # Skip on-site jobs not in California
             if work_setting in ["on_site", "onsite", "on-site", "in_office"]:
