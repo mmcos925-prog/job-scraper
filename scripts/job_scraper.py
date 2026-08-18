@@ -30,15 +30,29 @@ LOCATIONS = ["Brentwood CA", "Antioch CA", "Concord CA", "Walnut Creek CA", "Liv
 MIN_SALARY = 40000
 
 BLOCKED_EXPERIENCE = [
-    "5+ years", "6+ years", "7+ years", "8+ years", "10+ years",
-    "senior ", "staff ", "principal ", "director", "manager ", "lead "
+    "5+ years", "6+ years", "7+ years", "8+ years", "9+ years", "10+ years",
+    "5 years", "6 years", "7 years", "8 years", "9 years", "10 years",
+    "5+ yrs", "6+ yrs", "7+ yrs", "8+ yrs",
+    "minimum 5", "minimum 6", "minimum 7", "minimum 8",
+    "at least 5", "at least 6", "at least 7", "at least 8",
+    "senior ", "staff ", "principal ", "director", "manager ",
+    "lead ", "architect ", "vp ", "vice president", "head of",
+    "4+ years", "4 years experience", "minimum 4 years",
+    "at least 4 years", "4+ yrs"
 ]
 
 BLOCKED_COMPANIES = []
 
 BLOCKED_KEYWORDS = [
-    "cissp required", "10 years", "8 years", "7 years",
-    "6 years", "5 years experience required"
+    "cissp required", "cism required", "cisa required",
+    "10 years", "8 years", "7 years", "6 years", "5 years",
+    "4 years experience required", "4+ years required",
+    "not entry level", "not a junior", "no entry level",
+    "hybrid", "on-site", "onsite", "in-office",
+    "san francisco", "san jose", "seattle", "new york",
+    "chicago", "boston", "austin", "denver",
+    "must be local to", "requires relocation",
+    "secret clearance required", "ts/sci required"
 ]
 
 GMAIL_USER     = "brandon.coston925@gmail.com"
