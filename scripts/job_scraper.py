@@ -57,7 +57,7 @@ GMAIL_PASS     = os.environ.get("GMAIL_APP_PASSWORD")
 NOTIFY_EMAIL   = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
-SEEN_FILE      = "seen_jobs.json"
+SEEN_FILE      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "seen_jobs.json")
 
 
 def load_seen():
