@@ -9,21 +9,21 @@ from datetime import datetime
 from pathlib import Path
 
 JOB_KEYWORDS = [
-    "cloud security analyst",
-    "SOC analyst",
-    "junior cloud engineer",
+    "entry level cloud security analyst",
+    "junior SOC analyst",
     "IT support specialist",
-    "AWS security engineer",
     "help desk technician",
-    "information security analyst",
+    "IT help desk analyst",
+    "desktop support technician",
     "technical support specialist",
-    "junior IT analyst",
-    "entry level IT support",
-    "entry level cloud engineer",
-    "entry level security analyst",
-    "junior network administrator",
-    "IT help desk",
-    "junior systems administrator",
+    "entry level information security",
+    "junior IT support",
+    "service desk analyst",
+    "IT support analyst",
+    "cloud support engineer entry level",
+    "junior cybersecurity analyst",
+    "IT technician",
+    "end user support specialist",
 ]
 
 LOCATIONS = ["Brentwood CA", "Antioch CA", "Concord CA", "Walnut Creek CA", "Livermore CA", "Pittsburg CA", "remote"]
