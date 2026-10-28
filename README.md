@@ -6,7 +6,7 @@ An automated job search pipeline built with Python and GitHub Actions that searc
 
 ## What It Does
 
-- **Searches multiple job boards** simultaneously — Adzuna, USAJobs (federal), and Remotive
+- **Searches multiple job boards** simultaneously — Adzuna, Indeed, Dice, USAJobs (federal), Remotive, Remote OK, We Work Remotely, and government-contractor career sites (Leidos, GDIT, CACI, Booz Allen, SAIC)
 - **Applies intelligent filtering** to remove irrelevant results — senior roles, out-of-state on-site positions, below-salary-threshold postings, and non-IT roles
 - **Tracks previously seen jobs** using a persistent JSON cache committed back to the repo, ensuring every email only contains genuinely new postings
 - **Delivers a formatted HTML email digest** daily at 8:00 AM Pacific with job title, company, location, salary, and direct apply links grouped by source
@@ -23,6 +23,9 @@ An automated job search pipeline built with Python and GitHub Actions that searc
 | Adzuna API | Primary US job board source |
 | USAJobs API | Federal government IT roles |
 | Remotive RSS | Remote tech roles |
+| Remote OK API | Remote security, sysadmin, and support roles |
+| We Work Remotely RSS | Remote sysadmin and technical support roles |
+| Workday CXS endpoints | Remote/teleworker roles at government contractors |
 | smtplib / MIME | HTML email delivery via Gmail SMTP |
 | JSON | Seen jobs persistence cache |
 | GitHub Secrets | Secure credential management |
@@ -36,7 +39,8 @@ GitHub Actions (cron: 8AM Pacific daily)
          ↓
 job_scraper.py runs on ubuntu-latest runner
          ↓
-Fetches jobs from Adzuna + USAJobs + Remotive
+Fetches jobs from Adzuna + Indeed + Dice + USAJobs + Remotive
++ Remote OK + We Work Remotely + contractor Workday sites
          ↓
 Deduplicates across all sources
          ↓
@@ -68,6 +72,9 @@ The scraper applies a multi-layer filtering system:
 - Jobs explicitly marked as Remote
 - Jobs located in California cities near Brentwood (Bay Area, Sacramento corridor)
 - Blocks confirmed out-of-state locations using state abbreviation matching
+- Fully remote postings pass even if they list an out-of-state office (common for DC-area contractors); hybrid, on-site, and "Remote in <city>" postings don't
+
+**Remote-board filters** — Remote OK, We Work Remotely, and the contractor sites only keep target-role titles (help desk, IT/technical support, sysadmin, IAM, security analyst), US-friendly regions, and postings under 30 days old. Contractor postings must be marked remote or teleworker.
 
 **Salary Filter** — passes jobs with no salary listed (most don't list it) but filters out confirmed below-threshold postings
 

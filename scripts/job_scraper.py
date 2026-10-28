@@ -381,6 +381,170 @@ def fetch_remotive(keyword):
         return []
 
 
+# ---------------------------------------------------------------------------
+# Extra boards: Remote OK, We Work Remotely, and contractor Workday sites.
+# These boards aren't keyword-searched per location, so each fetcher keeps
+# only titles that look like the roles we want (ROLE_TERMS).
+# ---------------------------------------------------------------------------
+
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"
+
+ROLE_TERMS = [
+    "help desk", "helpdesk", "service desk", "desktop support", "it support",
+    "technical support", "support specialist", "support technician", "support analyst",
+    "it technician", "it specialist", "it analyst", "systems administrator",
+    "system administrator", "sysadmin", "iam", "identity", "access management",
+    "security analyst", "soc analyst", "cloud security", "cybersecurity analyst",
+    "information security analyst", "it administrator", "m365", "azure administrator",
+]
+
+US_OK_REGIONS = ["anywhere", "worldwide", "united states", "usa", "north america", "americas"]
+
+
+def is_target_role(title):
+    t = f" {title.lower()} "
+    return any(term in t for term in ROLE_TERMS)
+
+
+def is_us_friendly(region):
+    r = (region or "").lower().strip()
+    if not r:
+        return True
+    if re.search(r"\bus\b", r):
+        return True
+    return any(x in r for x in US_OK_REGIONS)
+
+
+REMOTEOK_TAGS = ["security", "sysadmin", "support", "devops"]
+MAX_AGE_DAYS = 30
+
+
+def fetch_remoteok():
+    """Remote OK public API. Their terms ask that we link back and name Remote OK as the source."""
+    jobs = []
+    cutoff = datetime.now().timestamp() - MAX_AGE_DAYS * 86400
+    for tag in REMOTEOK_TAGS:
+        try:
+            req = urllib.request.Request(f"https://remoteok.com/api?tag={tag}", headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8", errors="replace"))
+            for j in data[1:]:  # element 0 is the legal notice
+                title = j.get("position", "")
+                if not title or not is_target_role(title):
+                    continue
+                if int(j.get("epoch") or 0) < cutoff:
+                    continue
+                region = j.get("location", "")
+                if not is_us_friendly(region):
+                    continue
+                smin, smax = j.get("salary_min") or 0, j.get("salary_max") or 0
+                jobs.append({
+                    "title":       clean(title),
+                    "company":     clean(j.get("company")),
+                    "location":    f"Remote ({clean(region)})" if region else "Remote",
+                    "url":         j.get("url") or "https://remoteok.com",
+                    "salary":      f"${smin:,} - ${smax:,}" if smin else "Not listed",
+                    "salary_min":  smin,
+                    "description": title.lower(),
+                    "source":      "Remote OK",
+                })
+        except Exception as e:
+            print(f"  Remote OK error ({tag}): {e}")
+    return jobs
+
+
+WWR_FEEDS = {
+    "remote-devops-sysadmin-jobs": False,  # keep any target-role title
+    "remote-customer-support-jobs": True,   # keep only technical / IT support titles
+}
+
+
+def fetch_weworkremotely():
+    jobs = []
+    for feed, tech_only in WWR_FEEDS.items():
+        try:
+            req = urllib.request.Request(f"https://weworkremotely.com/categories/{feed}.rss",
+                                         headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                rss = r.read().decode("utf-8", errors="replace")
+            for item in re.findall(r"<item>(.*?)</item>", rss, re.DOTALL):
+                def tag(name):
+                    m = re.search(rf"<{name}>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{name}>", item, re.DOTALL)
+                    return m.group(1).strip() if m else ""
+                raw_title = tag("title")
+                company, _, title = raw_title.partition(": ")
+                if not title:
+                    company, title = "N/A", raw_title
+                if not is_target_role(title):
+                    continue
+                if tech_only and not any(k in title.lower() for k in ["technical", "it ", "help desk", "helpdesk", "service desk", "desktop"]):
+                    continue
+                region = tag("region")
+                if not is_us_friendly(region):
+                    continue
+                jobs.append({
+                    "title":       clean(title),
+                    "company":     clean(company),
+                    "location":    f"Remote ({clean(region)})" if region else "Remote",
+                    "url":         tag("link") or tag("guid") or "https://weworkremotely.com",
+                    "salary":      "Not listed",
+                    "salary_min":  0,
+                    "description": title.lower(),
+                    "source":      "We Work Remotely",
+                })
+        except Exception as e:
+            print(f"  We Work Remotely error ({feed}): {e}")
+    return jobs
+
+
+# Government contractors on Workday: (display name, tenant, wd host, site).
+# Only remote / teleworker postings are kept, so no relocation to the DC area.
+WORKDAY_SITES = [
+    ("Leidos",       "leidos", "wd5", "External"),
+    ("GDIT",         "gdit",   "wd5", "External_Career_Site"),
+    ("CACI",         "caci",   "wd1", "External"),
+    ("Booz Allen",   "bah",    "wd1", "BAH_Jobs"),
+    ("SAIC",         "saic",   "wd1", "External"),
+]
+
+
+def fetch_workday(keyword):
+    jobs = []
+    for name, tenant, wd, site in WORKDAY_SITES:
+        try:
+            base = f"https://{tenant}.{wd}.myworkdayjobs.com"
+            body = json.dumps({"appliedFacets": {}, "limit": 20, "offset": 0,
+                               "searchText": f"{keyword} remote"}).encode()
+            req = urllib.request.Request(f"{base}/wday/cxs/{tenant}/{site}/jobs", data=body, method="POST",
+                                         headers={"Content-Type": "application/json",
+                                                  "Accept": "application/json", "User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8", errors="replace"))
+            for p in data.get("jobPostings", []):
+                title = p.get("title", "")
+                loc   = p.get("locationsText", "")
+                text  = f"{title} {loc}".lower()
+                if "remote" not in text and "telework" not in text:
+                    continue
+                if not is_target_role(title):
+                    continue
+                if "30+" in (p.get("postedOn") or ""):
+                    continue
+                jobs.append({
+                    "title":       clean(title),
+                    "company":     name,
+                    "location":    f"Remote ({clean(loc)})",
+                    "url":         f"{base}/{site}{p.get('externalPath', '')}",
+                    "salary":      "Not listed",
+                    "salary_min":  0,
+                    "description": title.lower(),
+                    "source":      "Contractor Careers (Workday)",
+                })
+        except Exception as e:
+            print(f"  Workday error ({name}, {keyword}): {e}")
+    return jobs
+
+
 def deduplicate(jobs):
     seen, result = set(), []
     for j in jobs:
@@ -418,6 +582,13 @@ ALLOWED_LOCATIONS = [
 
 def is_allowed_location(job):
     location = job.get("location", "").lower().strip()
+
+    # Fully remote jobs pass even if they name an out-of-state office
+    # (e.g. "Remote (6314 Remote/Teleworker US)" or "Remote - Arlington, VA").
+    # "Remote in <city>" (Indeed) and hybrid/on-site still go through the normal checks.
+    is_remote = ("remote" in location or "telework" in location) and "remote in " not in location
+    if is_remote and not any(x in location for x in ["hybrid", "on-site", "onsite", "in-office"]):
+        return True
 
     # Block specific out-of-state locations first
     for blocked in BLOCKED_LOCATIONS:
@@ -506,7 +677,9 @@ def build_email(jobs, skipped):
 
     html += (
         f"<p style='color:#64748b;font-size:12px;text-align:center;margin-top:20px;'>"
-        f"Automated digest for Brandon Coston - github.com/mmcos925-prog</p>"
+        f"Automated digest for Brandon Coston - github.com/mmcos925-prog<br>"
+        f"Some listings via <a href='https://remoteok.com'>Remote OK</a> and "
+        f"<a href='https://weworkremotely.com'>We Work Remotely</a>.</p>"
         f"</div></body></html>"
     )
     return html
@@ -551,6 +724,11 @@ def main():
         all_jobs += fetch_dice(keyword)
         all_jobs += fetch_usajobs(keyword)
         all_jobs += fetch_remotive(keyword)
+        all_jobs += fetch_workday(keyword)
+
+    print("  Searching: Remote OK + We Work Remotely")
+    all_jobs += fetch_remoteok()
+    all_jobs += fetch_weworkremotely()
 
     all_jobs = deduplicate(all_jobs)
     print(f"Found {len(all_jobs)} unique postings before filtering")
