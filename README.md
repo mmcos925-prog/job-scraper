@@ -82,6 +82,17 @@ The scraper applies a multi-layer filtering system:
 
 ---
 
+## Ranking and Scam Checks
+
+Every job that passes the filters is scored by `scripts/job_scoring.py` before it goes in the email:
+
+- **Fit score:** points for matching skills and role types (help desk, NOC/SOC, identity and access, Entra/AD, Microsoft 365, AWS, tier 1, overnight), double points when the match is in the job title, and minus points for senior titles, 5+ years, or clearance requirements.
+- **Resume pick:** suggests which tailored resume to send (IT Support, NOC, Field IT, or Cloud Security).
+- **Scam flags:** warns about interviews over chat apps, requests to buy equipment or deposit checks, upfront fees, unnamed companies, unusually high pay for an entry-level title, and lookalike careers domains (for example `company-careers.com`) that aren't a known job board or applicant tracking system.
+- **Fine print:** notes postings like "Remote in NC" that usually require living in that state.
+
+The digest is grouped into **Best matches**, **Other new jobs**, and **Check before applying**. The scraper never applies to jobs automatically: it only ranks them so a person can review and apply.
+
 ## Setup
 
 ### Prerequisites

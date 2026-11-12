@@ -7,6 +7,9 @@ import hashlib
 import re
 from datetime import datetime
 from pathlib import Path
+from html import escape
+
+from job_scoring import annotate
 
 JOB_KEYWORDS = [
     "IAM analyst",
@@ -627,53 +630,69 @@ def is_allowed_location(job):
     return False
 
 
+TOP_SCORE = 8  # jobs at or above this go in "Best matches"
+
+
+def job_card(j):
+    url = escape(j["url"], quote=True)
+    reasons = ", ".join(r for r in j["reasons"] if not r.startswith("-")) or "general IT"
+    minus = ", ".join(r[1:] for r in j["reasons"] if r.startswith("-"))
+    color = "#16a34a" if j["score"] >= TOP_SCORE else ("#ca8a04" if j["score"] >= 3 else "#64748b")
+    html = (
+        f"<div style='background:white;border:1px solid #e2e8f0;border-radius:6px;padding:14px 16px;margin-bottom:10px;'>"
+        f"<div style='float:right;background:{color};color:white;font-weight:bold;border-radius:12px;"
+        f"padding:2px 10px;font-size:13px;'>{j['score']}</div>"
+        f"<h3 style='margin:0 0 4px;font-size:16px;'><a href='{url}' style='color:#1a56a0;text-decoration:none;'>"
+        f"{escape(j['title'])}</a></h3>"
+        f"<p style='margin:0 0 4px;color:#64748b;font-size:13px;'>{escape(j['company'])} | {escape(j['location'])} | "
+        f"{escape(j['source'])}</p>"
+        f"<p style='margin:0 0 4px;color:#16a34a;font-size:13px;'>{escape(j['salary'])}</p>"
+        f"<p style='margin:0 0 4px;font-size:13px;'><b>Matches:</b> {escape(reasons)}"
+        + (f" &nbsp;<b style='color:#b45309;'>Watch out:</b> {escape(minus)}" if minus else "")
+        + f"</p><p style='margin:0 0 6px;font-size:13px;'><b>Send resume:</b> {escape(j['resume'])}</p>"
+    )
+    if j["flags"]:
+        html += ("<p style='margin:0 0 4px;font-size:13px;color:#b91c1c;'><b>Possible scam:</b> "
+                 + escape("; ".join(j["flags"]))
+                 + ". Don't send personal info until you've verified the company.</p>")
+    for n in j["notes"]:
+        html += f"<p style='margin:0 0 4px;font-size:13px;color:#b45309;'><b>Note:</b> {escape(n)}</p>"
+    html += (f"<a href='{url}' style='display:inline-block;margin-top:4px;background:#1a56a0;color:white;"
+             f"padding:6px 14px;border-radius:4px;text-decoration:none;font-size:13px;'>View and apply</a></div>")
+    return html
+
+
 def build_email(jobs, skipped):
     today = datetime.now().strftime("%B %d, %Y")
-    if not jobs:
-        return (
-            f"<html><body style='font-family:Arial,sans-serif;max-width:700px;margin:auto;'>"
-            f"<div style='background:#1a56a0;padding:20px;border-radius:8px 8px 0 0;'>"
-            f"<h1 style='color:white;margin:0;'>Job Digest</h1>"
-            f"<p style='color:#dbeafe;margin:4px 0 0;'>{today}</p></div>"
-            f"<div style='padding:20px;'><p>No new postings today. "
-            f"{skipped} jobs were filtered (already seen, overqualified, or below "
-            f"${MIN_SALARY:,} salary minimum).</p></div></body></html>"
-        )
-
-    by_source = {}
-    for j in jobs:
-        by_source.setdefault(j["source"], []).append(j)
-
-    html = (
+    head = (
         f"<html><body style='font-family:Arial,sans-serif;max-width:700px;margin:auto;'>"
         f"<div style='background:#1a56a0;padding:20px;border-radius:8px 8px 0 0;'>"
         f"<h1 style='color:white;margin:0;'>Job Digest</h1>"
-        f"<p style='color:#dbeafe;margin:4px 0 0;'>{today} - "
-        f"{len(jobs)} new | {skipped} filtered out</p>"
-        f"</div><div style='padding:20px;background:#f8fafc;border:1px solid #e2e8f0;'>"
     )
+    if not jobs:
+        return (head + f"<p style='color:#dbeafe;margin:4px 0 0;'>{today}</p></div>"
+                f"<div style='padding:20px;'><p>No new postings today. {skipped} jobs were filtered "
+                f"(already seen, overqualified, location, or below ${MIN_SALARY:,}).</p></div></body></html>")
 
-    for source, source_jobs in by_source.items():
-        html += (
-            f"<h2 style='color:#1a56a0;border-bottom:2px solid #1a56a0;"
-            f"padding-bottom:6px;'>{source} ({len(source_jobs)})</h2>"
-        )
-        for j in source_jobs:
-            html += (
-                f"<div style='background:white;border:1px solid #e2e8f0;"
-                f"border-radius:6px;padding:16px;margin-bottom:12px;'>"
-                f"<h3 style='margin:0 0 4px;'>"
-                f"<a href='{j['url']}' style='color:#1a56a0;text-decoration:none;'>"
-                f"{j['title']}</a></h3>"
-                f"<p style='margin:0 0 4px;color:#64748b;font-size:14px;'>"
-                f"{j['company']} | {j['location']}</p>"
-                f"<p style='margin:0 0 8px;color:#16a34a;font-size:14px;'>"
-                f"{j['salary']}</p>"
-                f"<a href='{j['url']}' style='background:#1a56a0;color:white;"
-                f"padding:8px 16px;border-radius:4px;text-decoration:none;"
-                f"font-size:13px;'>View and Apply</a>"
-                f"</div>"
-            )
+    jobs = sorted(jobs, key=lambda j: j["score"], reverse=True)
+    best = [j for j in jobs if j["score"] >= TOP_SCORE and not j["flags"]]
+    flagged = [j for j in jobs if j["flags"]]
+    rest = [j for j in jobs if j not in best and j not in flagged]
+
+    html = head + (
+        f"<p style='color:#dbeafe;margin:4px 0 0;'>{today} - {len(jobs)} new | {len(best)} best matches | "
+        f"{skipped} filtered out</p></div>"
+        f"<div style='padding:20px;background:#f8fafc;border:1px solid #e2e8f0;'>"
+        f"<p style='margin:0 0 14px;font-size:13px;color:#475569;'>Ranked by fit score (higher is better). "
+        f"Each job shows which resume to send. Nothing here was applied to automatically.</p>"
+    )
+    sections = [("Best matches", best), ("Other new jobs", rest), ("Check before applying", flagged)]
+    for name, group in sections:
+        if not group:
+            continue
+        html += (f"<h2 style='color:#1a56a0;border-bottom:2px solid #1a56a0;padding-bottom:6px;font-size:18px;'>"
+                 f"{name} ({len(group)})</h2>")
+        html += "".join(job_card(j) for j in group)
 
     html += (
         f"<p style='color:#64748b;font-size:12px;text-align:center;margin-top:20px;'>"
@@ -754,11 +773,14 @@ def main():
             skipped += 1
             print(f"  FILTERED (location): {job.get('title')} | {job.get('location')} | {job.get('source')}")
             continue
-        filtered.append(job)
+        filtered.append(annotate(job))
         new_seen.add(jid)
 
     save_seen(new_seen)
     print(f"After filtering: {len(filtered)} new | {skipped} filtered out")
+    for j in sorted(filtered, key=lambda j: j["score"], reverse=True)[:15]:
+        flag = " [CHECK: " + "; ".join(j["flags"]) + "]" if j["flags"] else ""
+        print(f"  {j['score']:>3} | {j['title']} | {j['company']} | {j['resume']}{flag}")
 
     html = build_email(filtered, skipped)
     send_email(html, len(filtered), skipped)
