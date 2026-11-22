@@ -1,0 +1,42 @@
+name: Daily Job Scraper
+on:
+  schedule:
+    # Daily digest: every day at 8:00 AM Pacific (15:00 UTC)
+    - cron: '0 15 * * *'
+    # Fast alerts: every 3 hours at :30, for strong new matches only
+    - cron: '30 */3 * * *'
+  workflow_dispatch: # manual run from the Actions tab sends the full digest
+
+# Never let two runs overlap, so the seen-jobs cache doesn't get overwritten
+concurrency:
+  group: job-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Run job scraper
+        env:
+          JOB_MODE:           ${{ github.event.schedule == '30 */3 * * *' && 'alert' || 'digest' }}
+          GMAIL_USER:         ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          NOTIFY_EMAIL:       ${{ secrets.NOTIFY_EMAIL }}
+          ADZUNA_APP_ID:      ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY:     ${{ secrets.ADZUNA_APP_KEY }}
+          USAJOBS_API_KEY:    ${{ secrets.USAJOBS_API_KEY }}
+        run: python scripts/job_scraper.py
+      - name: Save seen jobs cache
+        run: |
+          git config --global user.email "brandon.coston925@gmail.com"
+          git config --global user.name "Job Scraper Bot"
+          git add seen_jobs.json || true
+          git diff --staged --quiet || git commit -m "Update seen jobs cache"
+          git pull --rebase || true
+          git push || true

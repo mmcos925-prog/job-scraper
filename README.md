@@ -93,6 +93,14 @@ Every job that passes the filters is scored by `scripts/job_scoring.py` before i
 
 The digest is grouped into **Best matches**, **Other new jobs**, and **Check before applying**. The scraper never applies to jobs automatically: it only ranks them so a person can review and apply.
 
+## Employer Sites, Commute, Pay, and Fast Alerts
+
+- **Employer career sites:** `scripts/company_sources.py` searches Amazon (amazon.jobs, within about 75 miles of Brentwood), TEKsystems (California listings), and Kaiser Permanente directly, so their postings show up the day they go live.
+- **Commute:** `scripts/local_info.py` estimates the drive from Brentwood for Bay Area and Central Valley cities. On-site California jobs more than about 90 minutes away are filtered out. Estimates assume no traffic.
+- **Pay:** hourly and yearly pay are both shown so they can be compared (hourly x 2,080 hours), and the minimum-salary filter converts hourly pay before comparing.
+- **Fast alerts:** with `JOB_MODE=alert`, the scraper checks only the employer sites and emails right away when a new job scores 10 or more with no scam flags. Everything else still waits for the daily digest. `docs/workflow-with-alerts.yml` is the workflow that runs alerts every 3 hours; copy it over `.github/workflows/job-scraper.yml` to turn them on.
+- **Application tracker:** the email links to a private tracker page for logging each application's status, resume, contact, and follow-up date.
+
 ## Setup
 
 ### Prerequisites

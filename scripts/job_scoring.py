@@ -18,6 +18,7 @@ POSITIVE = [
     (r"\bfield\b.*technician|deployment|imaging|data center", 2, "field/deployment"),
     (r"\btier (1|i)\b|\blevel (1|i)\b|\bl1\b", 2, "tier 1"),
     (r"entry[- ]level|early[- ]career|junior|\bjr\.?\b", 2, "entry level"),
+    (r"\b(analyst|technician|specialist|associate|administrator) (i|1)\b", 2, "level I"),
     (r"\bnoc\b|network operations", 3, "NOC"),
     (r"\bsoc\b|security operations", 3, "SOC"),
     (r"\biam\b|identity|access management|provisioning", 3, "identity/access"),
@@ -73,6 +74,9 @@ RESUME_TRACKS = [
 
 def pick_resume(job):
     text = f"{job.get('title', '')} {job.get('description', '')}".lower()
+    if (job.get("company") or "").lower() == "amazon" and re.search(
+            r"\bit\b|support|technician|network|data center|help ?desk", text):
+        return "Amazon IT Support"
     for pattern, name in RESUME_TRACKS:
         if re.search(pattern, text):
             return name
@@ -100,7 +104,7 @@ TRUSTED_HOSTS = [
     "adp.com", "paylocity.com", "bamboohr.com", "ultipro.com", "ukg.com",
     "indeed.com", "linkedin.com", "dice.com", "usajobs.gov", "remoteok.com",
     "weworkremotely.com", "remotive.com", "adzuna.com", "ziprecruiter.com", "glassdoor.com",
-    "amazon.jobs", "teksystems.com", "careerbuilder.com", "monster.com", "simplyhired.com",
+    "amazon.jobs", "kaiserpermanentejobs.org", "kaiserpermanente.org", "teksystems.com", "careerbuilder.com", "monster.com", "simplyhired.com",
 ]
 
 # Matched against the site's own name (e.g. "avalara-careers" in avalara-careers.com),

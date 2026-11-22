@@ -10,6 +10,8 @@ from pathlib import Path
 from html import escape
 
 from job_scoring import annotate
+from company_sources import fetch_amazon, fetch_teksystems, fetch_kaiser
+from local_info import annual_from, commute_label, pay_label, too_far
 
 JOB_KEYWORDS = [
     "IAM analyst",
@@ -49,6 +51,8 @@ GMAIL_PASS     = os.environ.get("GMAIL_APP_PASSWORD")
 NOTIFY_EMAIL   = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
+TRACKER_URL    = "https://claude.ai/artifact/JTRPcgQDujFn8U3VojCuqH"
+ALERT_SCORE    = 10  # fast alerts only go out for jobs scoring at least this, with no scam flags
 SEEN_FILE      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "seen_jobs.json")
 
 
@@ -88,7 +92,7 @@ def clean(text):
 IT_KEYWORDS = [
     "cloud", "security", "it ", "helpdesk", "help desk", "support",
     "network", "cyber", "analyst", "engineer", "technician", "specialist",
-    "soc", "aws", "azure", "linux", "system", "information technology",
+    " soc", "soc ", "aws", "azure", "linux", "system", "information technology",
     "devops", "infrastructure", "database", "software", "developer"
 ]
 
@@ -119,7 +123,7 @@ def is_entry_level(job):
 
 
 def meets_salary(job):
-    sal = job.get("salary_min", 0)
+    sal = annual_from(job.get("salary_min", 0))  # hourly pay is converted to yearly first
     if not sal:
         return True
     return sal >= MIN_SALARY
@@ -586,6 +590,10 @@ ALLOWED_LOCATIONS = [
 def is_allowed_location(job):
     location = job.get("location", "").lower().strip()
 
+    # On-site California jobs must be a known city within commuting distance of Brentwood
+    if too_far(location):
+        return False
+
     # Fully remote jobs pass even if they name an out-of-state office
     # (e.g. "Remote (6314 Remote/Teleworker US)" or "Remote - Arlington, VA").
     # "Remote in <city>" (Indeed) and hybrid/on-site still go through the normal checks.
@@ -646,7 +654,10 @@ def job_card(j):
         f"{escape(j['title'])}</a></h3>"
         f"<p style='margin:0 0 4px;color:#64748b;font-size:13px;'>{escape(j['company'])} | {escape(j['location'])} | "
         f"{escape(j['source'])}</p>"
-        f"<p style='margin:0 0 4px;color:#16a34a;font-size:13px;'>{escape(j['salary'])}</p>"
+        f"<p style='margin:0 0 4px;color:#16a34a;font-size:13px;'>{escape(pay_label(j['salary'], j.get('salary_min', 0)))}"
+        + (f" &nbsp;<span style='color:#475569;'>{escape(commute_label(j['location']))}</span>"
+           if commute_label(j['location']) else "")
+        + "</p>"
         f"<p style='margin:0 0 4px;font-size:13px;'><b>Matches:</b> {escape(reasons)}"
         + (f" &nbsp;<b style='color:#b45309;'>Watch out:</b> {escape(minus)}" if minus else "")
         + f"</p><p style='margin:0 0 6px;font-size:13px;'><b>Send resume:</b> {escape(j['resume'])}</p>"
@@ -697,6 +708,8 @@ def build_email(jobs, skipped):
     html += (
         f"<p style='color:#64748b;font-size:12px;text-align:center;margin-top:20px;'>"
         f"Automated digest for Brandon Coston - github.com/mmcos925-prog<br>"
+        f"Applied to something? Log it in your <a href='{TRACKER_URL}'>application tracker</a>. "
+        f"Drive times are rough estimates without traffic.<br>"
         f"Some listings via <a href='https://remoteok.com'>Remote OK</a> and "
         f"<a href='https://weworkremotely.com'>We Work Remotely</a>.</p>"
         f"</div></body></html>"
@@ -704,12 +717,27 @@ def build_email(jobs, skipped):
     return html
 
 
-def send_email(html_body, job_count, skipped):
+def build_alert(jobs):
+    jobs = sorted(jobs, key=lambda j: j["score"], reverse=True)
+    return (
+        "<html><body style='font-family:Arial,sans-serif;max-width:700px;margin:auto;'>"
+        "<div style='background:#b45309;padding:16px 20px;border-radius:8px 8px 0 0;'>"
+        f"<h1 style='color:white;margin:0;font-size:22px;'>New strong match{'es' if len(jobs) > 1 else ''}</h1>"
+        "<p style='color:#fef3c7;margin:4px 0 0;'>Just posted. Popular jobs can close within days, so apply soon.</p></div>"
+        "<div style='padding:20px;background:#f8fafc;border:1px solid #e2e8f0;'>"
+        + "".join(job_card(j) for j in jobs)
+        + f"<p style='color:#64748b;font-size:12px;text-align:center;'>Log applications in your "
+          f"<a href='{TRACKER_URL}'>application tracker</a>. The full list still comes in tomorrow's digest.</p>"
+        "</div></body></html>"
+    )
+
+
+def send_email(html_body, job_count, skipped, subject=None):
     if not GMAIL_PASS:
         print("Gmail app password not configured")
         return
     today   = datetime.now().strftime("%B %d, %Y")
-    subject = f"Job Digest {today} - {job_count} new | {skipped} filtered"
+    subject = subject or f"Job Digest {today} - {job_count} new | {skipped} filtered"
     safe    = html_body.encode("ascii", errors="replace").decode("ascii")
     raw     = (
         f"From: {GMAIL_USER}\r\n"
@@ -730,26 +758,36 @@ def send_email(html_body, job_count, skipped):
         print(f"Email failed: {e}")
 
 
-def main():
-    print(f"Starting job search - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    seen     = load_seen()
-    all_jobs = []
+def collect_jobs(mode):
+    jobs = []
+    print("  Searching: Amazon, TEKsystems, Kaiser")
+    jobs += fetch_amazon()
+    jobs += fetch_teksystems()
+    jobs += fetch_kaiser()
+    if mode == "alert":
+        return jobs  # alerts only watch the employer sites, which post and fill fastest
 
     for keyword in JOB_KEYWORDS:
         print(f"  Searching: {keyword}")
         for loc in LOCATIONS:
-            all_jobs += fetch_adzuna(keyword, loc)
-            all_jobs += fetch_indeed(keyword, loc)
-        all_jobs += fetch_dice(keyword)
-        all_jobs += fetch_usajobs(keyword)
-        all_jobs += fetch_remotive(keyword)
-        all_jobs += fetch_workday(keyword)
+            jobs += fetch_adzuna(keyword, loc)
+            jobs += fetch_indeed(keyword, loc)
+        jobs += fetch_dice(keyword)
+        jobs += fetch_usajobs(keyword)
+        jobs += fetch_remotive(keyword)
+        jobs += fetch_workday(keyword)
 
     print("  Searching: Remote OK + We Work Remotely")
-    all_jobs += fetch_remoteok()
-    all_jobs += fetch_weworkremotely()
+    jobs += fetch_remoteok()
+    jobs += fetch_weworkremotely()
+    return jobs
 
-    all_jobs = deduplicate(all_jobs)
+
+def main():
+    mode = os.environ.get("JOB_MODE", "digest").strip().lower()
+    print(f"Starting job search ({mode}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    seen     = load_seen()
+    all_jobs = deduplicate(collect_jobs(mode))
     print(f"Found {len(all_jobs)} unique postings before filtering")
 
     filtered  = []
@@ -763,24 +801,48 @@ def main():
             continue
         if not is_entry_level(job):
             skipped += 1
-            print(f"  FILTERED (experience): {job.get('title')} | {job.get('company')}")
+            if mode == "digest":
+                print(f"  FILTERED (experience): {job.get('title')} | {job.get('company')}")
             continue
         if not meets_salary(job):
             skipped += 1
-            print(f"  FILTERED (salary): {job.get('title')} | {job.get('company')}")
+            if mode == "digest":
+                print(f"  FILTERED (salary): {job.get('title')} | {job.get('company')}")
             continue
         if not is_allowed_location(job):
             skipped += 1
-            print(f"  FILTERED (location): {job.get('title')} | {job.get('location')} | {job.get('source')}")
+            if mode == "digest":
+                print(f"  FILTERED (location): {job.get('title')} | {job.get('location')} | {job.get('source')}")
             continue
-        filtered.append(annotate(job))
+        job = annotate(job)
+        if job["score"] <= 0 and job["source"] in ("Amazon Jobs", "Kaiser Careers", "TEKsystems"):
+            skipped += 1  # employer sites return every kind of job; keep only ones with some IT match
+            continue
+        if mode == "alert":
+            # Only strong, clean matches are alerted and marked seen; the rest wait for the daily digest.
+            if job["score"] >= ALERT_SCORE and not job["flags"]:
+                filtered.append(job)
+                new_seen.add(jid)
+            continue
+        filtered.append(job)
         new_seen.add(jid)
 
     save_seen(new_seen)
     print(f"After filtering: {len(filtered)} new | {skipped} filtered out")
     for j in sorted(filtered, key=lambda j: j["score"], reverse=True)[:15]:
         flag = " [CHECK: " + "; ".join(j["flags"]) + "]" if j["flags"] else ""
-        print(f"  {j['score']:>3} | {j['title']} | {j['company']} | {j['resume']}{flag}")
+        print(f"  {j['score']:>3} | {j['title']} | {j['company']} | {j['location']} | {j['resume']}{flag}")
+
+    if mode == "alert":
+        if filtered:
+            top = max(filtered, key=lambda j: j["score"])
+            subject = f"New match: {top['title']} at {top['company']}"
+            if len(filtered) > 1:
+                subject += f" (+{len(filtered) - 1} more)"
+            send_email(build_alert(filtered), len(filtered), skipped, subject=subject)
+        else:
+            print("No strong new matches - no alert sent")
+        return
 
     html = build_email(filtered, skipped)
     send_email(html, len(filtered), skipped)
