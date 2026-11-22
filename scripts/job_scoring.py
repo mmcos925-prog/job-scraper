@@ -104,7 +104,7 @@ TRUSTED_HOSTS = [
     "adp.com", "paylocity.com", "bamboohr.com", "ultipro.com", "ukg.com",
     "indeed.com", "linkedin.com", "dice.com", "usajobs.gov", "remoteok.com",
     "weworkremotely.com", "remotive.com", "adzuna.com", "ziprecruiter.com", "glassdoor.com",
-    "amazon.jobs", "kaiserpermanentejobs.org", "kaiserpermanente.org", "teksystems.com", "careerbuilder.com", "monster.com", "simplyhired.com",
+    "amazon.jobs", "kaiserpermanentejobs.org", "sutterhealth.org", "governmentjobs.com", "kaiserpermanente.org", "teksystems.com", "careerbuilder.com", "monster.com", "simplyhired.com",
 ]
 
 # Matched against the site's own name (e.g. "avalara-careers" in avalara-careers.com),
@@ -151,6 +151,75 @@ def annotate(job):
     """Add score, reasons, resume, flags, and notes to a job dict."""
     job["score"], job["reasons"] = score_job(job)
     job["resume"] = pick_resume(job)
+    job["flags"] = scam_flags(job)
+    job["notes"] = fine_print(job)
+    return job
+
+
+# ---------------------------------------------------------------------------
+# Local entry-level (non-IT) jobs at nearby employers
+# ---------------------------------------------------------------------------
+
+LOCAL_EMPLOYERS = {"kaiser permanente", "sutter health", "john muir health", "bart"}
+
+# (pattern, label, resume to send)
+LOCAL_ROLES = [
+    (r"environmental services|\bevs\b|housekeep|custodian|janitor|porter|laundry|linen", "custodial / EVS",
+     "Environmental Services"),
+    (r"food service|dietary|nutrition (aide|assistant|services)|dishwasher|\bcook\b", "food service",
+     "Environmental Services"),
+    (r"transporter|materials? handler|warehouse|stock|supply (tech|aide|clerk)|mail|courier", "warehouse / transport",
+     "Amazon Process Assistant"),
+    (r"cashier|receptionist|front desk|patient access|registration|admitting|scheduler|call center|"
+     r"customer service|unit (secretary|clerk)|office clerk|\bclerk\b", "front desk / clerical",
+     "Kaiser Receptionist"),
+    (r"security officer|community services officer|parking", "security", "Kaiser Receptionist"),
+    (r"electrician|electrical|maintenance (worker|helper|mechanic)|stationary engineer|utility worker|"
+     r"facilities (tech|technician)|building engineer", "electrical / facilities",
+     "Trade resume (ask Claude to make one)"),
+]
+
+LOCAL_EXCLUDE = re.compile(
+    r"\b(manager|mgr|supervisor|director|lead|senior|sr\.?|chief|principal|coordinator|specialist iii|"
+    r"rn|nurse|physician|therapist|pharmacist|technologist|sonographer|psychotherapist|social worker|"
+    r"engineer (ii|iii|iv)|iii|iv|v)\b", re.I)
+
+
+def local_role(job):
+    """Return (label, resume) if the title is an entry-level local role, else None."""
+    if (job.get("company") or "").lower() not in LOCAL_EMPLOYERS:
+        return None
+    title = job.get("title", "").lower()
+    if LOCAL_EXCLUDE.search(title):
+        return None
+    for pattern, label, resume in LOCAL_ROLES:
+        if re.search(pattern, title):
+            return label, resume
+    return None
+
+
+def score_local(job, commute_min):
+    text = f"{job.get('title', '')} {job.get('description', '')}".lower()
+    label, _ = local_role(job)
+    score, reasons = 6, [label]
+    if commute_min is not None:
+        if commute_min <= 30:
+            score, reasons = score + 3, reasons + ["close to home"]
+        elif commute_min <= 45:
+            score, reasons = score + 1, reasons + ["short commute"]
+    if re.search(r"full[- ]time", text):
+        score, reasons = score + 2, reasons + ["full-time"]
+    if re.search(r"night|overnight|noc shift|graveyard", text):
+        score, reasons = score + 2, reasons + ["night shift"]
+    if re.search(r"per diem|on-call|call-in|\b1 hours\b", text):
+        score, reasons = score - 2, reasons + ["-on-call/per diem"]
+    return score, reasons
+
+
+def annotate_local(job, commute_min):
+    job["track"] = "local"
+    job["score"], job["reasons"] = score_local(job, commute_min)
+    job["resume"] = local_role(job)[1]
     job["flags"] = scam_flags(job)
     job["notes"] = fine_print(job)
     return job

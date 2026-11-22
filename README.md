@@ -101,6 +101,10 @@ The digest is grouped into **Best matches**, **Other new jobs**, and **Check bef
 - **Fast alerts:** with `JOB_MODE=alert`, the scraper checks only the employer sites and emails right away when a new job scores 10 or more with no scam flags. Everything else still waits for the daily digest. `docs/workflow-with-alerts.yml` is the workflow that runs alerts every 3 hours; copy it over `.github/workflows/job-scraper.yml` to turn them on.
 - **Application tracker:** the email links to a private tracker page for logging each application's status, resume, contact, and follow-up date.
 
+## Local Entry-Level Jobs
+
+Besides IT roles, the scraper looks for entry-level, non-IT jobs at four nearby employers: Kaiser Permanente, Sutter Health (Phenom search), John Muir Health (Workday) and BART (GovernmentJobs.com). Titles like custodian / environmental services, housekeeping, cashier, receptionist, front desk, patient access, clerk, transporter, food service, warehouse, security officer and electrician count; manager, supervisor, lead, senior, nursing and other licensed roles don't. Only jobs in a known city within about 90 minutes of Brentwood are kept, and they're scored for commute, full-time, and night shifts (per-diem and on-call lose points). They get their own "Local entry-level jobs" section and suggested resume, and strong ones trigger fast alerts too.
+
 ## Setup
 
 ### Prerequisites

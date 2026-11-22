@@ -73,48 +73,63 @@ def fetch_amazon():
 
 
 # ---------------------------------------------------------------------------
-# TEKsystems (Phenom career site)
+# Phenom career sites: TEKsystems and Sutter Health share the same search API
 # ---------------------------------------------------------------------------
 TEK_QUERIES = ["help desk", "service desk", "desktop support", "IT support", "technical support",
                "NOC", "SOC", "Active Directory", "Entra", "access management"]
 
+# Entry-level, non-IT titles searched at the local employers (Kaiser, Sutter, John Muir, BART)
+ENTRY_QUERIES = ["environmental services", "housekeeping", "custodian", "janitor", "receptionist",
+                 "cashier", "patient access", "front desk", "clerk", "transporter", "food service",
+                 "warehouse", "materials handler", "security officer", "electrician"]
 
-def fetch_teksystems():
+
+def fetch_phenom(base, company, source, queries, size=100):
     jobs = []
-    for q in TEK_QUERIES:
+    for q in queries:
         try:
             body = json.dumps({
                 "lang": "en_us", "deviceType": "desktop", "country": "us", "pageName": "search-results",
                 "ddoKey": "refineSearch", "sortBy": "Most recent", "subsearch": "", "from": 0, "jobs": True,
-                "counts": True, "all_fields": ["category", "country", "state", "city", "type"], "size": 100,
+                "counts": True, "all_fields": ["category", "country", "state", "city", "type"], "size": size,
                 "clearAll": False, "jdsource": "facets", "isSliderEnable": False, "pageId": "page20",
                 "siteType": "external", "keywords": q, "global": True,
                 "selected_fields": {"state": ["California"]}, "locationData": {},
             }).encode()
-            data = json.loads(_get("https://careers.teksystems.com/widgets", data=body,
-                                   headers={"Content-Type": "application/json"}))
+            data = json.loads(_get(f"{base}/widgets", data=body, headers={"Content-Type": "application/json"}))
             for j in data.get("refineSearch", {}).get("data", {}).get("jobs", []):
                 teaser = j.get("descriptionTeaser", "") or ""
                 salary, sal_min = find_pay(teaser)
+                extras = " ".join(str(j.get(k, "") or "") for k in ("category", "type", "Shift", "department"))
                 jobs.append({
                     "title":       j.get("title", "").strip(),
-                    "company":     "TEKsystems",
+                    "company":     company,
                     "location":    f"{j.get('city', '')}, CA".strip(", "),
-                    "url":         f"https://careers.teksystems.com/us/en/job/{j.get('jobId', '')}",
+                    "url":         f"{base}/us/en/job/{j.get('jobId', '')}",
                     "salary":      salary,
                     "salary_min":  sal_min,
-                    "description": f"{teaser} {j.get('category', '')} {j.get('type', '')}".lower(),
-                    "source":      "TEKsystems",
+                    "description": f"{teaser} {extras}".lower(),
+                    "source":      source,
                 })
         except Exception as e:
-            print(f"  TEKsystems error ({q}): {e}")
+            print(f"  {company} error ({q}): {e}")
     return jobs
+
+
+def fetch_teksystems():
+    return fetch_phenom("https://careers.teksystems.com", "TEKsystems", "TEKsystems", TEK_QUERIES)
+
+
+def fetch_sutter():
+    return fetch_phenom("https://jobs.sutterhealth.org", "Sutter Health", "Sutter Health Careers",
+                        ENTRY_QUERIES + ["IT", "help desk", "service desk", "technician"])
 
 
 # ---------------------------------------------------------------------------
 # Kaiser Permanente (Radancy career site; it ignores location, so we filter by commute later)
 # ---------------------------------------------------------------------------
-KAISER_QUERIES = [("IT", 4), ("technician", 3), ("service desk", 1), ("desktop", 1)]  # (keyword, pages of 50)
+KAISER_QUERIES = [("IT", 4), ("technician", 3), ("service desk", 1), ("desktop", 1)] + [(q, 2) for q in ENTRY_QUERIES]
+# (keyword, pages of 50). Kaiser's search ignores location, so results are filtered by commute later.
 KAISER_ROW = re.compile(r'<a href="(/job/[^"]+)"[^>]*>\s*<h2>(.*?)</h2>\s*<span class="job-location">(.*?)</span>', re.S)
 
 
@@ -153,4 +168,79 @@ def fetch_kaiser():
             except Exception as e:
                 print(f"  Kaiser error ({q} p{page}): {e}")
                 break
+    return jobs
+
+
+# ---------------------------------------------------------------------------
+# John Muir Health (Workday; small enough to read every posting)
+# ---------------------------------------------------------------------------
+def fetch_johnmuir():
+    jobs, base = [], "https://jmh.wd5.myworkdayjobs.com"
+    for offset in range(0, 400, 20):
+        try:
+            body = json.dumps({"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""}).encode()
+            data = json.loads(_get(f"{base}/wday/cxs/jmh/JohnMuirHealthCareers/jobs", data=body,
+                                   headers={"Content-Type": "application/json"}))
+            posts = data.get("jobPostings", [])
+            for p in posts:
+                title = p.get("title", "")
+                # Titles carry schedule details, e.g. "Medical Receptionist - Cardiology - Full Time - 8 Hour - Days"
+                jobs.append({
+                    "title":       title.split(" - ")[0].strip(),
+                    "company":     "John Muir Health",
+                    "location":    f"{p.get('locationsText', '')}, CA",
+                    "url":         f"{base}/JohnMuirHealthCareers{p.get('externalPath', '')}",
+                    "salary":      "Not listed",
+                    "salary_min":  0,
+                    "description": title.lower(),
+                    "source":      "John Muir Health Careers",
+                })
+            if len(posts) < 20 or offset + 20 >= data.get("total", 0):
+                break
+        except Exception as e:
+            print(f"  John Muir error (offset {offset}): {e}")
+            break
+    return jobs
+
+
+# ---------------------------------------------------------------------------
+# BART (GovernmentJobs.com / NEOGOV)
+# ---------------------------------------------------------------------------
+BART_ROW = re.compile(r'<li class="list-item"[^>]*>.*?href="(/careers/bartca/jobs/[^"]+)"[^>]*>(.*?)</a>'
+                      r'.*?<ul class="list-meta">(.*?)</ul>.*?<div class="list-entry">(.*?)</div>', re.S)
+BART_SITES = [("met", "Oakland, CA"), ("headquarters", "Oakland, CA"), ("hayward", "Hayward, CA"),
+              ("concord", "Concord, CA"), ("richmond", "Richmond, CA"), ("daly city", "Daly City, CA"),
+              ("pittsburg", "Pittsburg, CA"), ("antioch", "Antioch, CA"), ("oakland", "Oakland, CA")]
+
+
+def fetch_bart():
+    jobs, seen = [], set()
+    for page in range(1, 6):
+        try:
+            html = _get(f"https://www.governmentjobs.com/careers/home/index?agency=bartca&sort=PostingDate"
+                        f"&isDescendingSort=true&page={page}", headers={"X-Requested-With": "XMLHttpRequest"})
+            rows = BART_ROW.findall(html)
+            new = [r for r in rows if r[0] not in seen]
+            if not new:
+                break
+            for href, title, meta, entry in new:
+                seen.add(href)
+                items = [_text(x) for x in re.findall(r"<li[^>]*>(.*?)</li>", meta, re.S)]
+                site = items[0] if items else ""
+                pay_line = next((x for x in items if "$" in x), "")
+                salary, sal_min = find_pay(pay_line)
+                loc = next((city for key, city in BART_SITES if key in site.lower()), "Bay Area (BART)")
+                jobs.append({
+                    "title":       _text(title),
+                    "company":     "BART",
+                    "location":    loc,
+                    "url":         "https://www.governmentjobs.com" + href,
+                    "salary":      salary,
+                    "salary_min":  sal_min,
+                    "description": f"{' '.join(items)} {_text(entry)[:1500]}".lower(),
+                    "source":      "BART Careers",
+                })
+        except Exception as e:
+            print(f"  BART error (page {page}): {e}")
+            break
     return jobs

@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from html import escape
 
-from job_scoring import annotate
-from company_sources import fetch_amazon, fetch_teksystems, fetch_kaiser
-from local_info import annual_from, commute_label, pay_label, too_far
+from job_scoring import annotate, annotate_local, local_role
+from company_sources import fetch_amazon, fetch_teksystems, fetch_kaiser, fetch_sutter, fetch_johnmuir, fetch_bart
+from local_info import annual_from, commute_label, commute_minutes, pay_label, too_far, MAX_COMMUTE_MIN
 
 JOB_KEYWORDS = [
     "IAM analyst",
@@ -74,7 +74,20 @@ def save_seen(seen):
         pass
 
 
+# Employer career sites list the same title at many locations, so their postings are keyed by link.
+EMPLOYER_SOURCES = {"Amazon Jobs", "TEKsystems", "Kaiser Careers", "Sutter Health Careers",
+                    "John Muir Health Careers", "BART Careers"}
+
+
+def dedupe_key(job):
+    if job.get("source") in EMPLOYER_SOURCES and job.get("url"):
+        return job["url"].lower()
+    return f"{job['title'].lower().strip()}|{job['company'].lower().strip()}"
+
+
 def job_id(job):
+    if job.get("source") in EMPLOYER_SOURCES and job.get("url"):
+        return hashlib.md5(job["url"].lower().encode()).hexdigest()
     key = f"{job['title'].lower()}{job['company'].lower()}"
     return hashlib.md5(key.encode()).hexdigest()
 
@@ -555,7 +568,7 @@ def fetch_workday(keyword):
 def deduplicate(jobs):
     seen, result = set(), []
     for j in jobs:
-        key = (j["title"].lower().strip(), j["company"].lower().strip())
+        key = dedupe_key(j)
         if key not in seen:
             seen.add(key)
             result.append(j)
@@ -686,9 +699,11 @@ def build_email(jobs, skipped):
                 f"(already seen, overqualified, location, or below ${MIN_SALARY:,}).</p></div></body></html>")
 
     jobs = sorted(jobs, key=lambda j: j["score"], reverse=True)
-    best = [j for j in jobs if j["score"] >= TOP_SCORE and not j["flags"]]
+    local = [j for j in jobs if j.get("track") == "local" and not j["flags"]]
+    it_jobs = [j for j in jobs if j.get("track") != "local"]
+    best = [j for j in it_jobs if j["score"] >= TOP_SCORE and not j["flags"]]
     flagged = [j for j in jobs if j["flags"]]
-    rest = [j for j in jobs if j not in best and j not in flagged]
+    rest = [j for j in it_jobs if j not in best and j not in flagged]
 
     html = head + (
         f"<p style='color:#dbeafe;margin:4px 0 0;'>{today} - {len(jobs)} new | {len(best)} best matches | "
@@ -697,7 +712,8 @@ def build_email(jobs, skipped):
         f"<p style='margin:0 0 14px;font-size:13px;color:#475569;'>Ranked by fit score (higher is better). "
         f"Each job shows which resume to send. Nothing here was applied to automatically.</p>"
     )
-    sections = [("Best matches", best), ("Other new jobs", rest), ("Check before applying", flagged)]
+    sections = [("Best IT matches", best), ("Local entry-level jobs (Kaiser, Sutter, John Muir, BART)", local),
+                ("Other new IT jobs", rest), ("Check before applying", flagged)]
     for name, group in sections:
         if not group:
             continue
@@ -760,10 +776,13 @@ def send_email(html_body, job_count, skipped, subject=None):
 
 def collect_jobs(mode):
     jobs = []
-    print("  Searching: Amazon, TEKsystems, Kaiser")
+    print("  Searching: Amazon, TEKsystems, Kaiser, Sutter, John Muir, BART")
     jobs += fetch_amazon()
     jobs += fetch_teksystems()
     jobs += fetch_kaiser()
+    jobs += fetch_sutter()
+    jobs += fetch_johnmuir()
+    jobs += fetch_bart()
     if mode == "alert":
         return jobs  # alerts only watch the employer sites, which post and fill fastest
 
@@ -798,6 +817,21 @@ def main():
         jid = job_id(job)
         if jid in seen:
             skipped += 1
+            continue
+        # Entry-level non-IT jobs at nearby employers (custodian, cashier, front desk, etc.)
+        if local_role(job):
+            mins = commute_minutes(job.get("location", ""))
+            if mins is None or mins > MAX_COMMUTE_MIN or not meets_salary(job):
+                skipped += 1
+                continue
+            job = annotate_local(job, mins)
+            if mode == "alert":
+                if job["score"] >= ALERT_SCORE and not job["flags"]:
+                    filtered.append(job)
+                    new_seen.add(jid)
+                continue
+            filtered.append(job)
+            new_seen.add(jid)
             continue
         if not is_entry_level(job):
             skipped += 1
