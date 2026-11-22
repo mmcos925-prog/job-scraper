@@ -103,7 +103,7 @@ The digest is grouped into **Best matches**, **Other new jobs**, and **Check bef
 
 ## Local Entry-Level Jobs
 
-Besides IT roles, the scraper looks for entry-level, non-IT jobs at four nearby employers: Kaiser Permanente, Sutter Health (Phenom search), John Muir Health (Workday) and BART (GovernmentJobs.com). Titles like custodian / environmental services, housekeeping, cashier, receptionist, front desk, patient access, clerk, transporter, food service, warehouse, security officer and electrician count; manager, supervisor, lead, senior, nursing and other licensed roles don't. Only jobs in a known city within about 90 minutes of Brentwood are kept, and they're scored for commute, full-time, and night shifts (per-diem and on-call lose points). They get their own "Local entry-level jobs" section and suggested resume, and strong ones trigger fast alerts too.
+Besides IT roles, the scraper looks for entry-level, non-IT jobs at five nearby employers: Amazon (warehouse, delivery station, transportation and Process Assistant roles), Kaiser Permanente, Sutter Health (Phenom search), John Muir Health (Workday) and BART (GovernmentJobs.com). Titles like custodian / environmental services, housekeeping, cashier, receptionist, front desk, patient access, clerk, transporter, food service, warehouse, security officer and electrician count; manager, supervisor, lead, senior, nursing and other licensed roles don't. Only jobs in a known city within about 90 minutes of Brentwood are kept, and they're scored for commute, full-time, and night shifts (per-diem and on-call lose points). They get their own "Local entry-level jobs" section and suggested resume, and strong ones trigger fast alerts too.
 
 ## Setup
 

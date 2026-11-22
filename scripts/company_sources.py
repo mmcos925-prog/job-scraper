@@ -41,7 +41,10 @@ def find_pay(text):
 # ---------------------------------------------------------------------------
 # Amazon
 # ---------------------------------------------------------------------------
-AMAZON_QUERIES = ["IT Support", "IT Support Associate", "Data Center Technician", "Help Desk", "Network Technician"]
+AMAZON_QUERIES = ["IT Support", "IT Support Associate", "Data Center Technician", "Help Desk", "Network Technician",
+                  # warehouse and operations roles near Brentwood (Tracy, Stockton, Livermore, etc.)
+                  "Process Assistant", "Warehouse Associate", "Fulfillment Center", "Delivery Station",
+                  "Transportation Associate", "Sortation", "Learning Ambassador"]
 
 
 def fetch_amazon():

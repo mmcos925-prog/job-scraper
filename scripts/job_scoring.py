@@ -160,10 +160,13 @@ def annotate(job):
 # Local entry-level (non-IT) jobs at nearby employers
 # ---------------------------------------------------------------------------
 
-LOCAL_EMPLOYERS = {"kaiser permanente", "sutter health", "john muir health", "bart"}
+LOCAL_EMPLOYERS = {"kaiser permanente", "sutter health", "john muir health", "bart", "amazon"}
 
 # (pattern, label, resume to send)
 LOCAL_ROLES = [
+    (r"process assistant|learning ambassador|fulfillment|warehouse|sortation|delivery station|"
+     r"transportation associate|\bdock\b|stow|outbound|inbound|ship(ping)? associate|receive",
+     "Amazon warehouse", "Amazon Process Assistant"),
     (r"environmental services|\bevs\b|housekeep|custodian|janitor|porter|laundry|linen", "custodial / EVS",
      "Environmental Services"),
     (r"food service|dietary|nutrition (aide|assistant|services)|dishwasher|\bcook\b", "food service",
@@ -185,12 +188,17 @@ LOCAL_EXCLUDE = re.compile(
     r"engineer (ii|iii|iv)|iii|iv|v)\b", re.I)
 
 
+# IT titles always go through the IT track, even at the local employers
+IT_TITLE = re.compile(r"\bit\b|help ?desk|service desk|desktop|technician|engineer|data center|network|"
+                      r"systems|software|security analyst|cyber|cloud", re.I)
+
+
 def local_role(job):
     """Return (label, resume) if the title is an entry-level local role, else None."""
     if (job.get("company") or "").lower() not in LOCAL_EMPLOYERS:
         return None
     title = job.get("title", "").lower()
-    if LOCAL_EXCLUDE.search(title):
+    if LOCAL_EXCLUDE.search(title) or IT_TITLE.search(title):
         return None
     for pattern, label, resume in LOCAL_ROLES:
         if re.search(pattern, title):

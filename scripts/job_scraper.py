@@ -712,7 +712,7 @@ def build_email(jobs, skipped):
         f"<p style='margin:0 0 14px;font-size:13px;color:#475569;'>Ranked by fit score (higher is better). "
         f"Each job shows which resume to send. Nothing here was applied to automatically.</p>"
     )
-    sections = [("Best IT matches", best), ("Local entry-level jobs (Kaiser, Sutter, John Muir, BART)", local),
+    sections = [("Best IT matches", best), ("Local entry-level jobs (Amazon, Kaiser, Sutter, John Muir, BART)", local),
                 ("Other new IT jobs", rest), ("Check before applying", flagged)]
     for name, group in sections:
         if not group:
