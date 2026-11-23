@@ -206,6 +206,17 @@ def local_role(job):
     return None
 
 
+HOSPITALS = {"kaiser permanente", "sutter health", "john muir health"}
+PRIORITY_TITLE = re.compile(r"environmental services|\bevs\b|housekeep|custodian|janitor|"
+                            r"cashier|receptionist|front desk", re.I)
+PRIORITY_FLOOR = 10  # matches the fast-alert cutoff in job_scraper.py
+
+
+def is_hospital_priority(job):
+    return ((job.get("company") or "").lower() in HOSPITALS
+            and bool(PRIORITY_TITLE.search(job.get("title", ""))))
+
+
 def score_local(job, commute_min):
     text = f"{job.get('title', '')} {job.get('description', '')}".lower()
     label, _ = local_role(job)
@@ -221,6 +232,10 @@ def score_local(job, commute_min):
         score, reasons = score + 2, reasons + ["night shift"]
     if re.search(r"per diem|on-call|call-in|\b1 hours\b", text):
         score, reasons = score - 2, reasons + ["-on-call/per diem"]
+    # Housekeeping and cashier/front desk jobs at the hospitals are always strong matches,
+    # so they land near the top of the digest and trigger fast alerts.
+    if is_hospital_priority(job):
+        score, reasons = max(score, PRIORITY_FLOOR), ["hospital priority"] + reasons
     return score, reasons
 
 
