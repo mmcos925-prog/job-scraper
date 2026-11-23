@@ -5,7 +5,7 @@ import urllib.parse
 import smtplib
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from html import escape
 
@@ -52,6 +52,7 @@ NOTIFY_EMAIL   = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
 ADZUNA_APP_ID  = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 TRACKER_URL    = "https://claude.ai/artifact/JTRPcgQDujFn8U3VojCuqH"
+DIGEST_HOUR_UTC = 15  # 8 AM Pacific (7 AM during daylight time)
 ALERT_SCORE    = 10  # fast alerts only go out for jobs scoring at least this, with no scam flags
 SEEN_FILE      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "seen_jobs.json")
 
@@ -777,12 +778,11 @@ def send_email(html_body, job_count, skipped, subject=None):
 def collect_jobs(mode):
     jobs = []
     print("  Searching: Amazon, TEKsystems, Kaiser, Sutter, John Muir, BART")
-    jobs += fetch_amazon()
-    jobs += fetch_teksystems()
-    jobs += fetch_kaiser()
-    jobs += fetch_sutter()
-    jobs += fetch_johnmuir()
-    jobs += fetch_bart()
+    for name, fetch in [("Amazon", fetch_amazon), ("TEKsystems", fetch_teksystems), ("Kaiser", fetch_kaiser),
+                        ("Sutter", fetch_sutter), ("John Muir", fetch_johnmuir), ("BART", fetch_bart)]:
+        found = fetch()
+        print(f"    {name}: {len(found)} postings")
+        jobs += found
     if mode == "alert":
         return jobs  # alerts only watch the employer sites, which post and fill fastest
 
@@ -804,8 +804,16 @@ def collect_jobs(mode):
 
 def main():
     mode = os.environ.get("JOB_MODE", "digest").strip().lower()
-    print(f"Starting job search ({mode}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     seen     = load_seen()
+
+    # GitHub sometimes skips scheduled runs (especially on the hour), so if today's 8 AM digest
+    # hasn't gone out yet, the first run after 15:00 UTC sends it instead of an alert.
+    now_utc = datetime.now(timezone.utc)
+    digest_marker = f"digest:{now_utc.strftime('%Y-%m-%d')}"
+    if mode == "alert" and now_utc.hour >= DIGEST_HOUR_UTC and digest_marker not in seen:
+        print("Today's digest hasn't been sent yet - sending it now instead of an alert")
+        mode = "digest"
+    print(f"Starting job search ({mode}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     all_jobs = deduplicate(collect_jobs(mode))
     print(f"Found {len(all_jobs)} unique postings before filtering")
 
@@ -861,6 +869,9 @@ def main():
         filtered.append(job)
         new_seen.add(jid)
 
+    if mode == "digest":
+        # Remember that today's digest went out; keep only the last few markers
+        new_seen = {s for s in new_seen if not s.startswith("digest:")} | {digest_marker}
     save_seen(new_seen)
     print(f"After filtering: {len(filtered)} new | {skipped} filtered out")
     for j in sorted(filtered, key=lambda j: j["score"], reverse=True)[:15]:

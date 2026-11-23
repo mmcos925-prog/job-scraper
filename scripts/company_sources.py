@@ -7,6 +7,8 @@ import json
 import re
 import urllib.parse
 import urllib.request
+import urllib.error
+import time
 from html import unescape
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"
@@ -14,11 +16,18 @@ HOME_LAT, HOME_LON = 37.93187, -121.69579  # Brentwood, CA
 
 
 def _get(url, headers=None, data=None, timeout=20):
+    """Fetch a URL, retrying once after a timeout or network hiccup."""
     h = {"User-Agent": UA, "Accept": "application/json, text/html;q=0.9"}
     h.update(headers or {})
-    req = urllib.request.Request(url, data=data, headers=h, method="POST" if data else "GET")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode("utf-8", errors="replace")
+    for attempt in (1, 2):
+        try:
+            req = urllib.request.Request(url, data=data, headers=h, method="POST" if data else "GET")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 2 or getattr(e, "code", None) in (400, 401, 403, 404):
+                raise
+            time.sleep(3)
 
 
 def _text(html):
@@ -57,8 +66,8 @@ def fetch_amazon():
             })
             data = json.loads(_get(f"https://www.amazon.jobs/en/search.json?{params}"))
             for j in data.get("jobs", []):
-                desc = _text(" ".join([j.get("description_short", ""), j.get("basic_qualifications", ""),
-                                        j.get("preferred_qualifications", ""), j.get("description", "")]))
+                desc = _text(" ".join((j.get(k) or "") for k in ("description_short", "basic_qualifications",
+                                                                  "preferred_qualifications", "description")))
                 salary, sal_min = find_pay(desc)
                 jobs.append({
                     "title":       j.get("title", "").strip(),
@@ -221,7 +230,8 @@ def fetch_bart():
     for page in range(1, 6):
         try:
             html = _get(f"https://www.governmentjobs.com/careers/home/index?agency=bartca&sort=PostingDate"
-                        f"&isDescendingSort=true&page={page}", headers={"X-Requested-With": "XMLHttpRequest"})
+                        f"&isDescendingSort=true&page={page}", headers={"X-Requested-With": "XMLHttpRequest"},
+                        timeout=45)
             rows = BART_ROW.findall(html)
             new = [r for r in rows if r[0] not in seen]
             if not new:
